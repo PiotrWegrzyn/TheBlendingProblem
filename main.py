@@ -1,138 +1,97 @@
-from pulp import *
-import re
+import kivy
+from kivy.core.window import Window
+from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.button import Button
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.textinput import TextInput
+
+kivy.require('1.8.0')
+from kivy.app import App
+from BlendingProblem import BlendingProblem
 
 
-class BlendingProblem():
+class BlendingProblemApp(App):
+
     def __init__(self):
-        self.problem = pulp.LpProblem("The Blending Problem", pulp.LpMinimize)
-        self.var_names = []
-        self.variables = []
-        self.objective_function = 0
+        super(BlendingProblemApp, self).__init__()
+        Window.clearcolor = (1, 1, 1, 1)
+        Window.size = (800, 500)
+        self.initial = True
+        self.blending_problem = BlendingProblem()
 
-    def set_vars_to_optimize(self):
-        self.get_var_to_optimize_names()
-        self.create_vars_to_optimize()
+    def build(self):
+        self.root = GridLayout(cols=2)
+        self.main_box = BoxLayout(orientation="vertical")
+        self.constraints_box = BoxLayout(orientation="vertical")
+        self.root.add_widget(self.main_box)
+        self.root.add_widget(self.constraints_box)
+        self.show_variables_input()
+        self.show_function_input()
 
-    def get_var_to_optimize_names(self):
-        var_names = "s1,s2,s3"    # self.get_var_names_from_user()
-        self.var_names = var_names.split(",")
+        return self.root
 
-    def get_var_names_from_user(self):
-        return input("Input optimized variable names")
+    def show_variables_input(self):
+        # self.variables_input = TextInput(text='Enter variables', multiline=False)
+        self.variables_input = TextInput(size_hint=(1, 0.2), hint_text='s1,s2,s3', multiline=False)
+        self.variables_input.bind(on_text_validate=self.on_enter_variables_input)
+        self.main_box.add_widget(self.variables_input)
 
-    def create_vars_to_optimize(self):
-        for name in self.var_names:
-            self.variables.append(pulp.LpVariable(name, lowBound=0))
+    def on_enter_variables_input(self, instance):
+        print('variables:', instance.text)
+        variables = instance.text
+        self.blending_problem.set_variables(variables)
 
-    def get_obj_fun_from_user(self):
-        return input("Objective function:")
+    def show_function_input(self):
+        # self.function_input = TextInput(text='Enter Object Function', multiline=False)
+        self.function_input = TextInput(size_hint=(1, 0.2), hint_text='s1*5 + 3*s2 + 4*s3', multiline=False)
+        self.function_input.bind(on_text_validate=self.on_enter_function_input)
+        self.main_box.add_widget(self.function_input)
 
-    def set_objective_function(self, obj_fun_string):
-        self.objective_function = self.string_to_function(obj_fun_string)
-        self.problem += self.objective_function
+    def on_enter_function_input(self, instance):
+        print('Object Function:', instance.text)
+        # objective_fun = "s1*5 + 3*s2 + 4*s3"
+        objective_fun = instance.text
+        self.blending_problem.set_objective_function(objective_fun)
+        if self.initial is True:
+            self.show_constraint_input()
+            self.show_solve_button()
+            self.show_clear_button()
+            self.initial = False
 
-    def get_expressions(self, obj_fun_string):
-        expression_strings = obj_fun_string.replace(" ", "").split("+")
-        expressions = [(e.split("*")) for e in expression_strings]
-        return expressions
+    def show_constraint_input(self):
+        # self.constraint_input = TextInput(text='Enter constraint', multiline=False)
+        self.constraint_input = TextInput(size_hint=(1, 0.2), hint_text=' 0.026*s1 + 0.021*s2 + 0.021*s3 >= 10.2', multiline=False)
+        self.constraint_input.bind(on_text_validate=self.on_enter_constraint_input)
+        self.constraints_box.add_widget(self.constraint_input)
 
-    def string_to_function(self, function_string):
-        fun = 0
-        expressions = self.get_expressions(function_string)
-        for expr in expressions:
-            fun = self.add_expression(fun, expr)
-        return fun
+    def on_enter_constraint_input(self, instance):
+        print('constraint:', instance.text)
+        constraint = instance.text
+        self.blending_problem.add_constraint(constraint)
+        self.show_constraint_input()
 
-    def add_expression(self, fun, expression):
-        if len(expression) > 1:
-            var_name = expression[1]
-            try:
-                factor = float(expression[0])
-            except ValueError:
-                var_name = expression[0]
-                try:
-                    factor = float(expression[1])
-                except ValueError:
-                    print("Wrong factor")
-                    return fun
-            try:
-                variable = self.get_var_by_name(var_name)
-                fun += factor * variable
-            except NameError:
-                print("No variable named: " + var_name + " found.")
-        if len(expression) is 1:
-            try:
-                factor = float(expression[0])
-                fun += factor
-            except ValueError:
-                try:
-                    var_name = expression[0]
-                    variable = self.get_var_by_name(var_name)
-                    fun += 1 * variable
-                except NameError:
-                    print("No variable named: " + expression[0] + " found.")
-        return fun
+    def show_solve_button(self):
+        self.solve_button = Button(size_hint=(1, 0.2),text='Solve')
+        self.solve_button.bind(on_press=self.solve_button_callback)
+        self.main_box.add_widget(self.solve_button)
 
-    def get_var_by_name(self, name):
-        for var in self.variables:
-            var_name = pulp.LpVariable.getName(var)
-            if var_name == name:
-                return var
-        raise NameError
+    def solve_button_callback(self, btn_instance):
+        self.blending_problem.solve()
+        self.blending_problem.print_results()
 
-    def get_constraint_from_user(self):
-        return input("Enter constraint")
+    def show_clear_button(self):
+        self.clear_button = Button(size_hint=(1, 0.2), text='Clear')
+        self.clear_button.bind(on_press=self.clear_button_callback)
+        self.main_box.add_widget(self.clear_button)
 
-    def add_constraint(self, constraint_string):
-        constraint = self.transform_string_to_constraint(constraint_string)
-        self.problem += constraint
-
-    def transform_string_to_constraint(self, constraint_string):
-        equality_symbol = self.get_equality_symbol(constraint_string)
-
-        left_side_string = constraint_string.split(equality_symbol)[0]
-        left_side = self.string_to_function(left_side_string)
-
-        right_side_string = constraint_string.split(equality_symbol)[1]
-        right_side = self.string_to_function(right_side_string)
-
-        constraint = self.construct_constraint(left_side,equality_symbol,right_side)
-        return constraint
-
-    def get_equality_symbol(self, constraint_string):
-        return re.findall(r"<=|==|>=|!=", constraint_string)[0]
-
-    def construct_constraint(self, left_side, equality_symbol, right_side):
-        if equality_symbol == "<=":
-            return left_side <= right_side
-        if equality_symbol == "==":
-            return left_side == right_side
-        if equality_symbol == ">=":
-            return left_side >= right_side
-        if equality_symbol == "!=":
-            return left_side != right_side
-
-    def solve(self):
-        self.problem.solve()
-
-    def print_results(self):
-        print("Optimal Result:")
-        for var in self.problem.variables():
-            print(var.name, "=", var.varValue)
-        print("Total min cost:")
-        print(value(self.problem.objective))
+    def clear_button_callback(self, btn_instance):
+        self.blending_problem = BlendingProblem()
+        self.main_box.clear_widgets()
+        self.constraints_box.clear_widgets()
+        self.show_variables_input()
+        self.show_function_input()
+        self.initial = True
 
 
-if __name__ == "__main__":
-    bp = BlendingProblem()
-    bp.set_vars_to_optimize()
-    objective_fun = "s1*5 + 3*s2 + 4*s3"  # bp.get_obj_fun_from_user()
-    bp.set_objective_function(objective_fun)
-    bp.add_constraint(" 0.026*s1 + 0.021*s2 + 0.021*s3 >= 10.2")
-    bp.add_constraint("0.004*s1 + 0.009*s2 + 0.006*s3 >= 2.4")
-    bp.add_constraint("0.006*s1 + 0.002*s2 + 0.006*s3 >= 2.7")
-    bp.add_constraint("0.006*s1 + 0.002*s2 + 0.006*s3 <= 4")
-    bp.add_constraint("2*s1 == s3")
-    bp.solve()
-    bp.print_results()
-
+if __name__ == '__main__':
+    BlendingProblemApp().run()
