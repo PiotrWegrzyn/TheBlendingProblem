@@ -1,6 +1,7 @@
 from pulp import *
 import re
 
+
 class BlendingProblem():
     def __init__(self):
         self.problem = pulp.LpProblem("The Blending Problem", pulp.LpMinimize)
@@ -30,6 +31,11 @@ class BlendingProblem():
         self.objective_function = self.string_to_function(obj_fun_string)
         self.problem += self.objective_function
 
+    def get_expressions(self, obj_fun_string):
+        expression_strings = obj_fun_string.replace(" ", "").split("+")
+        expressions = [(e.split("*")) for e in expression_strings]
+        return expressions
+
     def string_to_function(self, function_string):
         fun = 0
         expressions = self.get_expressions(function_string)
@@ -37,15 +43,18 @@ class BlendingProblem():
             fun = self.add_expression(fun, expr)
         return fun
 
-    def get_expressions(self, obj_fun_string):
-        expression_strings = obj_fun_string.replace(" ", "").split("+")
-        expressions = [(e.split("*")) for e in expression_strings]
-        return expressions
-
     def add_expression(self, fun, expression):
         if len(expression) > 1:
-            factor = float(expression[0])
             var_name = expression[1]
+            try:
+                factor = float(expression[0])
+            except ValueError:
+                var_name = expression[0]
+                try:
+                    factor = float(expression[1])
+                except ValueError:
+                    print("Wrong factor")
+                    return fun
             try:
                 variable = self.get_var_by_name(var_name)
                 fun += factor * variable
@@ -103,21 +112,27 @@ class BlendingProblem():
         if equality_symbol == "!=":
             return left_side != right_side
 
+    def solve(self):
+        self.problem.solve()
+
+    def print_results(self):
+        print("Optimal Result:")
+        for var in self.problem.variables():
+            print(var.name, "=", var.varValue)
+        print("Total min cost:")
+        print(value(self.problem.objective))
+
 
 if __name__ == "__main__":
     bp = BlendingProblem()
     bp.set_vars_to_optimize()
-    objective_fun = "5*s1 + 3*s2 + 4*s3"  # runner.get_obj_fun_from_user()
+    objective_fun = "s1*5 + 3*s2 + 4*s3"  # bp.get_obj_fun_from_user()
     bp.set_objective_function(objective_fun)
     bp.add_constraint(" 0.026*s1 + 0.021*s2 + 0.021*s3 >= 10.2")
     bp.add_constraint("0.004*s1 + 0.009*s2 + 0.006*s3 >= 2.4")
     bp.add_constraint("0.006*s1 + 0.002*s2 + 0.006*s3 >= 2.7")
     bp.add_constraint("0.006*s1 + 0.002*s2 + 0.006*s3 <= 4")
     bp.add_constraint("2*s1 == s3")
-    bp.problem.solve()
-    print("Optimal Result:")
-    for var in bp.problem.variables():
-        print(var.name, "=", var.varValue)
-    print("Total min cost:")
-    print(value(bp.problem.objective))
+    bp.solve()
+    bp.print_results()
 
